@@ -1,0 +1,549 @@
+---
+title: 'Google Data Analytics: Case Study #1'
+author: "S.Watson"
+date: "1/23/2022"
+geometry: margin=1in
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+require(knitr,attach.required = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+
+# checks to see if formatR is installed and loaded package
+require("formatR",attach.required = TRUE)
+```
+
+# **Introduction**
+This R Markdown document will be comprised of the analysis performed for Case Study #1 for the Google Data Analytics Professional Certificate. This document will provide an overview of the business case, a step-by-step walk through of data preparation, processing and analysis, a summary of findings, recommendations, and potential future steps.
+
+
+# **Business Case**
+Cyclistic, a fictional bike-share company, based in Chicago, IL, has requested your services. The marketing director, Lily Moreno, believes the company's future success depends upon maximizing the number of annual memberships. The company would like to better understand the differences between how *casual* riders and annual *members* utilize Cyclistic's bikes in hopes of designing a new marketing strategy to convert *casual* riders into annual *member*. Note that customers who purchase "single-ride" or "full-day" passes are considered *casual* riders and customers who purchase annual memberships are considered *members*.
+
+The goal of this analysis is to identify difference between casual riders and annual members.
+
+
+# **Data Preparation**
+The section details the data preparation utilized for this analysis. The raw data files can be located [here](https://divvy-tripdata.s3.amazonaws.com/index.html). The last twelve (12) months of data were utilized for this analysis (January 2021 through December 2021). 
+
+First, the necessary packages were installed and loaded for allow for data loading, cleaning, analysis and visualization.
+
+```{r load_pkg, eval=TRUE, results='hide',message=FALSE}
+#Install packages utilized for analysis if install is required - remove and run code
+
+#install.packages("lubricate")
+#install.packages("tidyverse") 
+#install.packages("skimr") 
+
+#Load packages required for data analysis
+
+#Load tidyverse package for data import, cleaning, analysis, and visualization
+library(tidyverse)
+#Load lubricate package to handle date/time analysis
+library(lubridate)
+#Load hms library to handle time conversion (part of tidyverse package)
+library(hms)
+#Load skimr package for data analysis
+library(skimr)
+
+```
+
+
+Please confirm working directory location to allow for data import.
+
+```{r eval=TRUE, tidy=TRUE, results='asis'}
+getwd()
+
+```
+
+*If the data files are not located in the working directory, then they can be moved to the working directory, mapped to the working directory when they are loaded, or the working directory can be set to their file path location at the beginning of the code chunk. The following code can be copied into the respective code chunk to change working directory to location where data files are stored.*
+
+```{r eval=FALSE, tidy=TRUE, results='asis'}
+#Change working directory (if required), uncomment below code and add applicable file path
+
+#setwd()
+
+```
+
+Next, the individual data files were loaded into RStudio as dataframes. 
+
+*Note that the following steps (loading data files, create new dataframes) will consume a fair amount of memory. Please be mindful of memory usage.*
+
+```{r load_data, eval=TRUE, tidy=TRUE, results='hide', message=FALSE}
+#Set directory to location of raw data files
+setwd(paste("C:/Users/Stephanie/Documents/GradSchool",
+            "/Coursera/Google_Data_Analytics",
+            "/8-CapstoneProject/Week2/Case_1/Raw-Data/CSV_files/2021",sep = ""))
+
+#Load in raw CSV files from 2021
+Jan_2021_raw <- read_csv("202101-divvy-tripdata.csv")
+Feb_2021_raw <- read_csv("202102-divvy-tripdata.csv")
+Mar_2021_raw <- read_csv("202103-divvy-tripdata.csv")
+Apr_2021_raw <- read_csv("202104-divvy-tripdata.csv")
+May_2021_raw <- read_csv("202105-divvy-tripdata.csv")
+June_2021_raw <- read_csv("202106-divvy-tripdata.csv")
+July_2021_raw <- read_csv("202107-divvy-tripdata.csv")
+Aug_2021_raw <- read_csv("202108-divvy-tripdata.csv")
+Sep_2021_raw <- read_csv("202109-divvy-tripdata.csv")
+Oct_2021_raw <- read_csv("202110-divvy-tripdata.csv")
+Nov_2021_raw <- read_csv("202111-divvy-tripdata.csv")
+Dec_2021_raw <- read_csv("202112-divvy-tripdata.csv")
+
+```
+
+Lastly, the individual monthly dataframes were compiled into one dataframe, which represents all 2021 data. This one dataframe was saved in the event further analysis is required on the raw data. The individual monthly dataframes were removed to free up memory space.
+
+```{r raw_df, eval=TRUE, tidy=TRUE, results='hide'}
+#Combine all monthly files into one yearly dataframe
+Total_2021_trips_raw <- bind_rows(Jan_2021_raw, Feb_2021_raw, Mar_2021_raw, Apr_2021_raw, May_2021_raw, June_2021_raw, July_2021_raw, Aug_2021_raw, Sep_2021_raw, Oct_2021_raw, Nov_2021_raw, Dec_2021_raw) 
+
+#Write combined data to csv files (mapped from Week2/Case_1 directory)
+write_csv(Total_2021_trips_raw,"Raw-Data/CSV_files/2021/Total_2021_Trips_raw.csv", col_names = TRUE)
+
+#remove monthly data to free up memory space.
+rm(Jan_2021_raw,Feb_2021_raw, Mar_2021_raw, Apr_2021_raw, May_2021_raw, June_2021_raw, July_2021_raw, Aug_2021_raw, Sep_2021_raw, Oct_2021_raw, Nov_2021_raw, Dec_2021_raw)
+gc()
+
+```
+
+A view and summary of statistics on the raw data was performed. 
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#Review combined data to ensure all data was merged correctly
+kable(head(Total_2021_trips_raw), caption="The First 6 row of raw dataframe")
+
+```
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#Obtain combined data column names to be utilized in data processing
+colnames(Total_2021_trips_raw)
+
+```
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#Obtain summary statistics on combined raw data
+str(Total_2021_trips_raw)
+
+```
+
+In total, there are 5,595,063 rows and 13 columns in the combined 2021 raw dataframe. The column names and data type are summarized below.
+
+
+Column Name         |   Data Type   |  Column Description
+--------------      |   ---------   |  ------------------
+ride_id             |    character  |  Unique ride ID
+rideable_type       |    character  |  Type of bike utilized for ride  
+started_at          |    datetime   |  Date/time ride was started (S3: POSIXct)
+ended_at            |    datetime   |  Date/time ride was ended (S3: POSIXct) 
+start_station_name  |    character  |  Name of ride start station
+start_station_id    |    character  |  Unique ID for ride start station      
+end_station_name    |    character  |  Name of ride end station
+end_station_id      |    character  |  Unique ID for ride end station     
+start_lat           |    numeric    |  Latitude of start station
+start_lng           |    numeric    |  Longitude of start station      
+end_lat             |    numeric    |  Latitude of end station     
+end_lng             |    numeric    |  Longitude of end station
+member_casual       |    character  |  Type of rider   
+
+
+# **Data Processing**
+This section details the data processing for this analysis. The raw data mentioned above will be cleaned in preparation for data analysis. Data not required for this analysis were removed, new columns were created for ride length, weekday, month, and year, and the data was sorted based on the ride start date/time. The raw 2021 dataframe was removed to free up memory space.
+
+```{r new_df, eval=TRUE, tidy=TRUE, results='hide'}
+#Utilize select statement to remove unnecessary rows (start/end station, 
+#ride_id and start/end lat/lng), add new columns for ride_length, day_of_week,
+#year, and month and sort data by start date/time in ascending order
+
+Total_2021_trips_clean <- Total_2021_trips_raw %>%
+  mutate(ride_length = 
+           int_length(interval(ymd_hms(started_at),ymd_hms(ended_at))), 
+         day_of_week = wday(ymd_hms(started_at), label = TRUE, abbr = FALSE),  
+         month_ = month(ymd_hms(started_at), label = TRUE, abbr = FALSE), 
+         year_ = year(ymd_hms(started_at))) %>%
+  arrange(started_at) %>% 
+  select(rideable_type, started_at, ended_at, member_casual, ride_length,    
+         day_of_week, month_, year_)
+
+#The raw 2021 dataframe was removed to free up memory space. 
+rm(Total_2021_trips_raw)
+gc()
+```
+
+A view and summary of statistics on the clean data was performed. 
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+kable(head(Total_2021_trips_clean),caption="The First 6 row of new dataframe")
+
+```
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+str(Total_2021_trips_clean)
+
+```
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+
+skim_without_charts(Total_2021_trips_clean)
+
+```
+
+Based on the statistics summary, there are ride times with values less than 0 seconds (negative times) and greater than 1 day (86400 seconds). 
+
+The dataframe was queried for the negative values.
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+
+count(Total_2021_trips_clean[which(Total_2021_trips_clean$ride_length < 0), ])
+
+```
+
+There are 147 rows with negative ride times. The below chart displays the number of negative ride lengths per month. 
+
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+
+ggplot(Total_2021_trips_clean[which(Total_2021_trips_clean$ride_length < 0), ])+
+  geom_point(aes(x=month_,y=ride_length,color=month_)) +  
+  labs(x="Month", y="Ride Length (seconds)", title = 
+         "Negative Ride Lengths by Month") +  
+  guides(x=guide_axis(n.dodge = 2)) 
+                                                                  
+```
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#Count the number of negative ride lengths in the month of November
+count(Total_2021_trips_clean[which(Total_2021_trips_clean$ride_length < 0 &   Total_2021_trips_clean$month_ == "November" ), ])
+
+```
+
+It appears that nine (9) months have at least one ride length that is negative, with most being a few seconds in length. The month of November has a significant number of negative ride lengths (53) with values significantly larger than previous months. The cause for these anomalies should be investigated. 
+
+
+Next, the dataframe was queried for the ride lengths which are greater than 1 day (84600 seconds). 
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#Count number of ride length that are greater than 84600 seconds (1 day)
+count(Total_2021_trips_clean[which(Total_2021_trips_clean$ride_length > 
+                                     86400), ])
+
+```
+
+
+There are 4,016 rows with ride times greater than 1 day. The below chart displays the number of ride lengths that exceed 1 day per month.
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#scatter plot of ride lengths greater than 1 day per month
+ggplot(Total_2021_trips_clean[which(Total_2021_trips_clean$ride_length > 
+                                      86400), ]) + 
+  geom_point(aes(x=month_,y=ride_length,color=month_)) +
+  labs(x="Month", y="Ride Length (seconds)", title = 
+         " Ride Lengths Greater than 1 day by Month") +
+  guides(x=guide_axis(n.dodge = 2)) 
+                                                                  
+```
+
+
+Based on this graph, it appears that each month has ride lengths greater than 1 day. The higher numbers in spring/summer is consistent with the increased number of rides during this time period.
+
+
+Also, based on the information provided on Divvy website (located [here](https://ride.divvybikes.com/system-data)), ride lengths less than 60 seconds were removed as these trips could be *'potentially false starts or users trying to redock a bike'*. 
+
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#count number of ride lengths that a positive and less than 60 seconds
+count(Total_2021_trips_clean[which((Total_2021_trips_clean$ride_length < 60) &  (Total_2021_trips_clean$ride_length >= 0)), ])
+
+```
+
+There are 85,086 rows with positive ride times that are less than 60 seconds. The below chart displays the number of positive ride lengths that are less than 60 seconds day per month.
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#scatter plot of ride lengths that a positive and less than 60 seconds
+ggplot(Total_2021_trips_clean[which((Total_2021_trips_clean$ride_length < 60) & 
+                                      (Total_2021_trips_clean$ride_length >=
+                                         0)), ]) + 
+  geom_point(aes(x=month_,y=ride_length,color=month_)) +  
+  labs(x="Month", y="Ride Length (seconds)", title = 
+         " Ride Lengths Less than 60 seconds by Month") +   
+  guides(x=guide_axis(n.dodge = 2)) 
+                                                                  
+```
+
+Based on this graph, it appears that each month has positive ride lengths that are less than 60 seconds.
+
+
+The ride lengths that are negative, less than 60 seconds, or greater than 1 day (89,249 samples out of over 5 million or ~1.6%), will be removed from the dataframe. In addition, rides with "docked_bike" were removed as this category only captures how long a bike stayed at a station.This cleaned data was stored in a new dataframe 
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+
+Total_2021_trips_clean <- subset(Total_2021_trips_clean, (!((Total_2021_trips_clean$ride_length < 60) | (Total_2021_trips_clean$ride_length > 86400)) & !(Total_2021_trips_clean$rideable_type == "docked_bike")))
+
+#Write cleaned data to csv file (mapped from Week2/Case_1 directory)
+write_csv(Total_2021_trips_clean,"CleanData/Total_2021_Trips_clean.csv", col_names = TRUE)
+
+skim_without_charts(Total_2021_trips_clean)
+
+```
+
+In total, there are 5,196,779 rows and 8 columns in the combined 2021 clean dataframe. The column names and data type are summarized below.
+
+
+Column Name         |   Data Type   |  Column Description
+--------------      |   ---------   |  ------------------
+rideable_type       |    character  |  Type of bike utilized for ride      
+started_at          |    datetime   |  Date/time ride was started (S3: POSIXct)
+ended_at            |    datetime   |  Date/time ride was ended (S3: POSIXct) 
+member_casual       |    character  |  Type of rider 
+ride_length         |    numeric    |  Ride length in seconds      
+day_of_week         |    ordinal    |  Weekday extracted from start date/time
+month_              |    ordinal    |  Month extracted from start date/time  
+year_               |    numeric    |  Year extracted from start date/time
+
+
+# **Data Analysis**
+This section details the data analysis of the clean data. The goal of this analysis is to identify differences in behavior between casual riders and annual members. The first subsection performs descriptive analytics (i.e. max, mean, median, etc) and the second subsection plots the cleaned data. 
+
+
+## *Descriptive Analysis*
+In this subsection, descriptive analytics is performed on the cleaned 2021 data in an attempt to understand the difference behaviors of casual riders and members.
+
+
+First, the maximum, average, and median ride lengths were calculated based on member type for each bike type.
+
+```{r eval=TRUE, tidy=TRUE, results='markup',message=FALSE}
+#Summarize data, calculate max, mean, and median ride length (in hh:mm:ss) by member type and bike type
+kable(Total_2021_trips_clean %>%   
+  group_by(member_casual, rideable_type)  %>% 
+  drop_na() %>% 
+  summarize(max_ride_length = hms(max(ride_length)), mean_ride_length =  
+              round_hms(hms(mean(ride_length)),2), median_ride_length =  
+              hms(median(ride_length))), caption =  
+    "2021 Max, Average, Median Ride Length by Member Type & Bike Type")
+
+```
+
+Based on this information, it appears that the *casual* rider spends more time on each bike type category. 
+
+
+Secondly, the maximum, average, and median ride lengths were calculated based on member type for day of the week.
+
+```{r eval=TRUE, tidy=TRUE, results='markup',message=FALSE}
+#Summarize data, mean and max ride length (in hh:mm:ss) per day by member type
+kable(Total_2021_trips_clean %>%   
+  group_by(member_casual, day_of_week)  %>% 
+  drop_na() %>% 
+  summarize(max_ride_length = hms(max(ride_length)), mean_ride_length =  
+              round_hms(hms(mean(ride_length)),2), median_ride_length =  
+              hms(median(ride_length))),caption =   
+    "2021 Max, Average, Median Ride Length by Member Type & Day of Week")
+
+```
+Based on this information, it appears that the *casual* rider spend on average more time utilizing the bikes than *member* customer. In addition, the top two (2) days for both the *casual* and *member* customers with respect to the highest average and median ride lengths are Sunday and Saturday respectively.
+
+
+Next, the maximum, average, and median ride lengths were calculated based on member type for each month.
+
+```{r eval=TRUE, tidy=TRUE, results='markup',message=FALSE}
+#Summarize data, mean,median, max ride length (in hh:mm:ss) per day by member type
+kable(Total_2021_trips_clean %>%   
+  group_by(member_casual, month_)  %>% 
+  drop_na() %>% 
+  summarize(max_ride_length = hms(max(ride_length)), mean_ride_length =  
+              round_hms(hms(mean(ride_length)),2), median_ride_length =  
+              hms(median(ride_length))),caption =   
+    "2021 Max, Average, Median Ride Length by Member Type & Month")
+
+```
+
+Based on this information, *casual* rider average ride length peaks in early in the year (February through May). 
+
+
+Next, the total number of rides per month by member type was calculated.
+
+```{r eval=TRUE, tidy=TRUE, results='markup',message=FALSE}
+#Summarize data, count number of rides per month by member type in descending order
+ride_count_tbl<- Total_2021_trips_clean %>%   
+  group_by(member_casual,month_)  %>% 
+  drop_na() %>% 
+  summarize(ride_count = n()) %>% 
+  arrange(desc(ride_count))
+
+kable(ride_count_tbl,caption="2021 Monthly Ride Count by Member Type Desc.")
+```
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+#Summarize data, average monthly rider by member type
+ 
+kable(aggregate(ride_count~member_casual,ride_count_tbl,mean), caption =   
+        "2021 Average Ride Count by Member Type")
+
+```
+
+Based on this information, both *casual* customer and *member* customer demand peaks in 3Q (July, August, September). Both customer bases exceed their yearly average in May and drop below their averages in November.
+
+
+Next, the ride count per month by member count and bike type was calculated.
+
+```{r eval=TRUE, tidy=TRUE, results='markup'}
+ kable(count(Total_2021_trips_clean, member_casual, rideable_type, month_,
+             member_casual, sort = TRUE), caption =   
+         "2021 Ride Count by Member Type, Bike Type, and Month Desc.")
+  
+```
+
+
+This information confirms that *casual* customer and *member* customer demand peaks in 3Q (July, August, September). This also indicates that the *classic* bike type appears to be the most popular among *casual* riders and *member* customers.
+
+
+## *Data Visualization*
+In this subsection, data visualization is performed on the cleaned 2021 data in an attempt to understand the difference behaviors of casual riders and members.
+
+
+First, the average ride length per month by member type was plotted.
+
+```{r eval=TRUE, tidy=TRUE, results='markup', fig.align='center',message=FALSE}
+#Create line chart to display monthly average ride length per member type
+Total_2021_trips_clean %>%   
+  group_by(member_casual, month_)  %>% 
+  drop_na() %>% 
+  summarize(mean_ride_length = round_hms(hms(mean(ride_length)),2)) %>% 
+  ggplot(aes(x=month_, y=mean_ride_length, group=member_casual, colour=   member_casual)) +   
+  geom_line(size=2) +   
+  geom_point(shape="diamond",size=5) +  
+  scale_color_manual(values=c("#0448FE","#FE8C04"))+labs(x="Month", y="Average Ride Length", title = "2021 Average Ride Length per Month") +   
+  guides(x=guide_axis(n.dodge = 2)) 
+
+```
+
+
+As expected, the average ride length for *casual* customers is higher than that of *member* customers.  
+
+The median ride length was also plotted.
+
+```{r eval=TRUE, tidy=TRUE, results='markup', fig.align='center',message=FALSE}
+#Create column chart to display monthly average ride length per member type
+Total_2021_trips_clean %>%   
+  group_by(member_casual, month_)  %>% 
+  drop_na() %>% 
+  summarize(median_ride_length = round_hms(hms(median(ride_length)),2)) %>% 
+  ggplot(aes(x=month_, y=median_ride_length, fill=member_casual)) +  
+  geom_col(position = "dodge") +   
+  scale_fill_manual(values=c("#0448FE","#FE8C04")) +  
+  labs(x="Month", y="Median Ride Length", title = "2021 Median Ride Length per Month") +   
+  guides(x=guide_axis(n.dodge = 2)) 
+
+```
+
+
+This plot shows that the *casual* customers still have a 'typical' ride length that is greater than a *member* customer however the time length is not as drastic (monthly median within ~ 5 minutes).
+
+
+Secondly, the average ride length by bike type was plotted by member type.
+
+```{r eval=TRUE, tidy=TRUE, results='markup', fig.align='center',message=FALSE}
+#Create column chart to display monthly ride count by member type
+Total_2021_trips_clean %>%   
+  group_by(member_casual, rideable_type)  %>% 
+  drop_na() %>% 
+  summarize(mean_ride_length = round_hms(hms(median(ride_length)),2)) %>% 
+  ggplot() + geom_col(aes(x=rideable_type, y=mean_ride_length, fill = member_casual), position = "dodge2") + 
+  scale_fill_manual(values=c("#0448FE","#FE8C04")) +
+  labs(x="Bike Type", y="Median Ride Length", title = "2021 Median Ride Length per Bike Type")
+
+```
+
+
+As expected, *casual* customers spend more time on each bike type offered.
+
+
+Next, the monthly ride count by member type was plotted.
+
+```{r eval=TRUE, tidy=TRUE, results='markup', fig.align='center',message=FALSE}
+#Create bar chart to display monthly ride count by member type
+Total_2021_trips_clean %>%   
+  group_by(member_casual, month_)  %>% 
+  drop_na() %>% 
+  ggplot(aes(x=month_, fill = member_casual)) + 
+  geom_bar(position = "dodge2") + 
+  scale_fill_manual(values=c("#0448FE","#FE8C04")) + 
+  labs(x="Month", y="Ride Count", title = "2021 Ride Count per Month") + 
+  guides(x = guide_axis(n.dodge = 2))
+
+```
+
+
+The third quarter (July, August, September) produces the highest monthly riders for both *casual* and *member* customers.
+
+
+Next, the ride count by weekday for each member type was plotted.
+
+```{r eval=TRUE, tidy=TRUE, results='markup', fig.align='center'}
+#Create bar chart to display ride count by member type for each weekday
+Total_2021_trips_clean %>%   
+  group_by(member_casual, day_of_week)  %>% 
+  drop_na() %>% 
+  ggplot(aes(x=day_of_week, fill = member_casual)) + 
+  geom_bar(position = "dodge2") + 
+  scale_fill_manual(values=c("#0448FE","#FE8C04")) + 
+  labs(x="Day of Week", y="Ride Count", title = "2021 Ride Count per Weekday")
+
+```
+
+*Casual* customers prefer bike rides on the weekend while *member* customer demand is fairly throughout the week.
+
+
+Lastly, the ride count by month for each bike type was plotted
+
+```{r eval=TRUE, tidy=TRUE, results='markup', fig.align='center'}
+#Create bar chart to display ride count by member type for each weekday
+Total_2021_trips_clean %>%   
+  group_by(rideable_type, month_)  %>% 
+  drop_na() %>% 
+  ggplot(aes(x=month_, fill = rideable_type)) + 
+  geom_bar(position = "dodge2") + 
+  labs(x="Month", y="Ride Count", title = "2021 Ride Count per Month by Bike Type") +
+  guides(x = guide_axis(n.dodge = 2))
+
+```
+
+Both the *casual* and *member* customer have a preference for the classic bike.
+
+
+# **Summary / Recommendations**
+This section summarizes the data analysis and provides recommendations based on the above analysis.
+
+To reiterate, the goal of this analysis is to identify difference between casual riders and annual members.
+
+In summary, the differences between casual riders and members are as follows.
+
+1.*Casual* riders demand for bikes peaks on the weekends while *member* demand is fairly consistent throughout the week.
+
+2.*Casual* riders spend more time on average on the rented bike versus *member* riders.
+
+3.*Casual* riders peak demand for bikes is slightly early in the year (July vs. September) versus *member* riders
+
+
+Based on the above analysis, it is recommended to perform the following to maximize annual membership by converting *casual* riders to *member*:
+
+No  |  Recommendation 
+--- | --------------- 
+1   | Run targeted marketing campaign on the **weekends** maximize *casual* riders customer pool      
+2   | Run targeted marketing campaign in **spring/summer** to maximize *casual* riders customer pool  
+3   | Possibly run targeted marketing campaign in on **classic** bikes to maximize *casual* riders customer pool
+
+
+Note that an interactive Tableau dashboard of this analysis can be found [here](https://public.tableau.com/views/GoogleDataAnalyticsCourseraCaseStudy1/2021BikeShareDashboard_1?:language=en-US&:display_count=n&:origin=viz_share_link)
+
+The raw and cleaned dataset can be found [here](https://www.kaggle.com/swatsonds/datasets)
+
+# **Next Steps**
+
+ - Investigate the cause of the negative ride length spike in November 2021
+ - Investigate ride lengths that last over 1 day
+ - Review previous years data to confirm if trends identified during the 2021  analysis are valid. The COVID-19 pandemic may have strewed the 2020 and 2021 data 
